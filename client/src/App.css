@@ -1,0 +1,155 @@
+:root {
+  --bg: #14121f;
+  --surface: #1e1b2e;
+  --surface2: #262238;
+  --line: #332e48;
+  --accent: #ff9f6b;
+  --mint: #7ee0c3;
+  --pink: #ff6b9d;
+  --text: #f2ede4;
+  --muted: #8b84a3;
+  --radius: 18px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: radial-gradient(ellipse at 20% -10%, #241f38 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: "Manrope", sans-serif;
+  min-height: 100vh;
+}
+.display { font-family: "Fredoka", sans-serif; }
+.mono { font-family: "JetBrains Mono", monospace; }
+#app { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; position: relative; }
+
+/* ---------- JOIN SCREEN ---------- */
+.join-wrap { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.join-glow {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffd7b8, var(--accent) 60%);
+  box-shadow: 0 0 40px 6px rgba(255, 159, 107, 0.35);
+  margin-bottom: 18px;
+  animation: pulse 3s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.join-wrap h1 { font-size: 2.4rem; margin: 0 0 8px; font-weight: 600; }
+.join-wrap p { color: var(--muted); margin: 0 0 32px; max-width: 420px; line-height: 1.5; }
+.join-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 28px; width: 100%; max-width: 380px; text-align: left;
+}
+label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; letter-spacing: 0.02em; }
+input[type="text"] {
+  width: 100%; background: var(--surface2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; color: var(--text); font-size: 1rem; font-family: inherit; margin-bottom: 18px; outline: none;
+  transition: border-color 0.15s;
+}
+input[type="text"]:focus { border-color: var(--accent); }
+.row-btns { display: flex; gap: 10px; }
+button { font-family: inherit; cursor: pointer; border: none; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #ff7f4d);
+  color: #1a0f08; font-weight: 700; padding: 12px 18px; border-radius: 12px; font-size: 0.95rem; flex: 1;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255, 127, 77, 0.3); }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--line); color: var(--text); padding: 12px 16px; border-radius: 12px; font-size: 0.9rem;
+}
+.btn-ghost:hover { border-color: var(--accent); }
+.divider-or { color: var(--muted); text-align: center; font-size: 0.75rem; margin: 16px 0; letter-spacing: 0.1em; }
+
+/* ---------- ROOM HEADER ---------- */
+.room-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.room-code-chip { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); padding: 8px 14px; border-radius: 999px; }
+.room-code-chip .mono { font-size: 1rem; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; }
+.copy-btn { background: var(--surface2); color: var(--muted); border-radius: 8px; padding: 5px 9px; font-size: 0.72rem; }
+.copy-btn:hover { color: var(--text); }
+.leave-btn { color: var(--muted); background: transparent; font-size: 0.82rem; text-decoration: underline; }
+
+/* ---------- PRESENCE ---------- */
+.presence-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.avatar {
+  width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem; color: #1a0f08; position: relative; flex-shrink: 0; border: 2px solid var(--bg);
+}
+.avatar.online { box-shadow: 0 0 0 3px rgba(126, 224, 195, 0.35); }
+.avatar .dot { position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); }
+.avatar .dot.on { background: var(--mint); }
+.avatar .dot.off { background: #54506b; }
+.presence-names { color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- REACTIONS ---------- */
+.reaction-bar { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+.react-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; font-size: 1.15rem; transition: transform 0.1s, border-color 0.1s; }
+.react-btn:hover { transform: translateY(-2px) scale(1.05); border-color: var(--accent); }
+.float-layer { position: fixed; bottom: 0; left: 0; right: 0; height: 0; pointer-events: none; z-index: 50; }
+.floater { position: fixed; font-size: 1.8rem; bottom: 40px; pointer-events: none; animation: floatUp 2.6s ease-out forwards; }
+.floater .who { font-size: 0.6rem; font-family: "Manrope"; color: var(--muted); background: var(--surface); padding: 2px 6px; border-radius: 8px; display: block; text-align: center; margin-top: 2px; white-space: nowrap; }
+@keyframes floatUp {
+  0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(-260px) translateX(var(--drift, 20px)) rotate(12deg); opacity: 0; }
+}
+
+/* ---------- TABS ---------- */
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; background: var(--surface); padding: 5px; border-radius: 14px; border: 1px solid var(--line); }
+.tab-btn { flex: 1; padding: 10px 8px; border-radius: 10px; color: var(--muted); font-weight: 600; font-size: 0.88rem; background: transparent; transition: background 0.15s, color 0.15s; }
+.tab-btn.active { background: var(--surface2); color: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; min-height: 340px; }
+.panel h2 { margin: 0 0 4px; font-size: 1.3rem; display: flex; align-items: center; gap: 8px; }
+.panel .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 18px; }
+
+/* ---------- WATCH / LISTEN ---------- */
+.media-input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.media-input-row input { margin-bottom: 0; flex: 1; }
+.video-wrap { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #0c0a14; margin-bottom: 14px; border: 1px solid var(--line); }
+.video-wrap iframe { width: 100%; height: 100%; border: 0; }
+/* On the Listen tab we still keep a real YouTube player mounted (for audio + the
+   sync/timing APIs) but show the vinyl/equalizer visual on top instead of the
+   video — so we shrink+tuck the raw player out of the way rather than
+   display:none-ing it, which can break playback state in some browsers. */
+.watch-mount-hidden { position: fixed; width: 2px; height: 2px; aspect-ratio: unset; overflow: hidden; opacity: 0.01; pointer-events: none; bottom: 0; left: 0; margin: 0; border: 0; }
+.listen-visual {
+  width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; margin-bottom: 14px; border: 1px solid var(--line);
+  background: radial-gradient(circle at 50% 40%, #2a2440, #14121f 75%);
+  display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+}
+.vinyl { width: 120px; height: 120px; border-radius: 50%; background: repeating-radial-gradient(circle, #0c0a14 0 3px, #24202f 3px 6px); display: flex; align-items: center; justify-content: center; border: 2px solid #3a3452; }
+.vinyl.spin { animation: spin 3.2s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.vinyl .label { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); }
+.eq { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: center; gap: 4px; transition: opacity 0.3s; }
+.eq span { width: 4px; background: var(--mint); border-radius: 2px; animation: eq 0.9s ease-in-out infinite; height: 16px; }
+.eq span:nth-child(2) { animation-delay: 0.15s; }
+.eq span:nth-child(3) { animation-delay: 0.3s; }
+.eq span:nth-child(4) { animation-delay: 0.1s; }
+.eq span:nth-child(5) { animation-delay: 0.25s; }
+@keyframes eq { 0%, 100% { height: 6px; } 50% { height: 26px; } }
+
+.controls-row { display: flex; align-items: center; gap: 12px; }
+.icon-btn { background: var(--surface2); color: var(--text); width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; border: 1px solid var(--line); }
+.icon-btn:hover { border-color: var(--accent); }
+.seek-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 4px; position: relative; cursor: pointer; }
+.seek-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+.time-label { font-size: 0.75rem; color: var(--muted); font-family: "JetBrains Mono"; min-width: 38px; }
+.empty-hint { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+.synced-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--mint); background: rgba(126, 224, 195, 0.1); padding: 3px 9px; border-radius: 999px; margin-left: 8px; }
+.synced-tag .d { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); }
+
+/* ---------- GAME ---------- */
+.claim-row { display: flex; gap: 10px; margin-bottom: 18px; }
+.claim-btn { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2); color: var(--text); font-weight: 700; }
+.claim-btn.mine { border-color: var(--accent); color: var(--accent); }
+.claim-btn.taken { color: var(--muted); }
+.board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 280px; margin: 0 auto 18px; }
+.cell { aspect-ratio: 1; background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; font-family: "Fredoka"; color: var(--text); }
+.cell.x { color: var(--accent); }
+.cell.o { color: var(--mint); }
+.cell.win { background: rgba(255, 159, 107, 0.15); border-color: var(--accent); }
+.cell:not(.filled):not(.disabled):hover { border-color: var(--accent); cursor: pointer; }
+.turn-banner { text-align: center; color: var(--muted); font-size: 0.9rem; margin-bottom: 14px; }
+.turn-banner b { color: var(--text); }
+.center-btn { display: block; margin: 0 auto; }
