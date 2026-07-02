@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 let apiPromise = null;
 function loadYouTubeAPI() {
@@ -21,63 +21,57 @@ function loadYouTubeAPI() {
 }
 
 /**
- * Mounts a YouTube player and keeps refs to both the wrapper container and
- * the player instance.
+ * Mounts a YouTube player using a React *callback ref* instead of a plain
+ * ref + useEffect. React calls a callback ref with the real DOM node the
+ * instant it's attached (and with null right before it's removed) — there is
+ * no separate render/commit/effect timing to reason about, so this can't
+ * race the way a useRef+useEffect pairing sometimes can.
  *
- * IMPORTANT: this does NOT hand YouTube's API a DOM node that React also
- * renders declaratively. YouTube's player replaces whatever element you give
- * it with a live <iframe> — if that element is one React put in its own JSX
- * tree, then the next time the component re-renders for any unrelated reason
- * (a presence update, a chat reaction, anything), React reconciles its
- * virtual DOM, sees "this should be an empty div" and stomps the iframe back
- * to nothing. No error, no warning — the video just silently vanishes.
- *
- * The fix: the caller attaches `containerRef` to an always-empty React div.
- * Because that div has zero children in JSX, React never touches its
- * contents on re-render. Inside this hook we then imperatively create the
- * actual mount node ourselves (outside React's knowledge) and hand *that* to
- * YouTube, so the two never fight over the same element.
+ * It also still avoids handing YouTube a DOM node that React renders
+ * declaratively: we create our own plain child div imperatively and give
+ * that to YouTube, so React never tries to reconcile the iframe YouTube
+ * creates.
  */
 export function useYouTubePlayer(mountId) {
-  const containerRef = useRef(null);
   const playerRef = useRef(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let cancelled = false;
+  const containerRef = useCallback(
+    (node) => {
+      if (node) {
+        const inner = document.createElement("div");
+        inner.id = mountId;
+        inner.style.width = "100%";
+        inner.style.height = "100%";
+        node.appendChild(inner);
 
-    const inner = document.createElement("div");
-    inner.id = mountId;
-    containerRef.current.appendChild(inner);
-
-    loadYouTubeAPI().then((YT) => {
-      if (cancelled) return;
-      playerRef.current = new YT.Player(inner, {
-        height: "100%",
-        width: "100%",
-        playerVars: { rel: 0, modestbranding: 1 },
-        events: {
-          onReady: () => {
-            if (!cancelled) setReady(true);
-          },
-        },
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      setReady(false);
-      try {
-        playerRef.current?.destroy();
-      } catch (e) {
-        // player may not be fully initialized yet
+        loadYouTubeAPI().then((YT) => {
+          // If the component unmounted before the API finished loading,
+          // `node` will already be disconnected — bail out instead of
+          // creating a player nobody can see.
+          if (!inner.isConnected) return;
+          playerRef.current = new YT.Player(inner, {
+            height: "100%",
+            width: "100%",
+            playerVars: { rel: 0, modestbranding: 1 },
+            events: {
+              onReady: () => setReady(true),
+            },
+          });
+        });
+      } else {
+        // node is null: React is about to remove the container (unmount).
+        try {
+          playerRef.current?.destroy();
+        } catch (e) {
+          // player may not be fully initialized yet
+        }
+        playerRef.current = null;
+        setReady(false);
       }
-      playerRef.current = null;
-      if (containerRef.current) containerRef.current.innerHTML = "";
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mountId]);
+    },
+    [mountId]
+  );
 
   return [containerRef, playerRef, ready];
 }
