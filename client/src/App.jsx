@@ -45,8 +45,8 @@ export default function App() {
   const [game, setGame] = useState(emptyGame());
   const [floaters, setFloaters] = useState([]);
 
-  const watchPlayer = useYouTubePlayer("yt-watch-mount");
-  const listenPlayer = useYouTubePlayer("yt-listen-mount");
+  const [watchContainerRef, watchPlayerRef, watchReady] = useYouTubePlayer("yt-watch-mount");
+  const [listenContainerRef, listenPlayerRef, listenReady] = useYouTubePlayer("yt-listen-mount");
 
   const joinRoom = useCallback(
     (code, name) => {
@@ -69,15 +69,15 @@ export default function App() {
     setGame(emptyGame());
   }, []);
 
-  // Wire up socket listeners once, and re-attach handlers if player refs change.
+  // Wire up socket listeners once, and re-attach handlers if player refs/readiness change.
   useEffect(() => {
     function onSnapshot(s) {
       setPresence(s.presence || {});
       setWatch(s.watch || emptyMedia());
       setListen(s.listen || emptyMedia());
       setGame(s.game || emptyGame());
-      applyStateToPlayer(watchPlayer, s.watch || emptyMedia(), { force: true });
-      applyStateToPlayer(listenPlayer, s.listen || emptyMedia(), { force: true });
+      applyStateToPlayer(watchPlayerRef, s.watch || emptyMedia(), { force: true });
+      applyStateToPlayer(listenPlayerRef, s.listen || emptyMedia(), { force: true });
     }
     function onPresenceUpdate(p) {
       setPresence(p);
@@ -88,10 +88,10 @@ export default function App() {
     function onMediaUpdate({ kind, state }) {
       if (kind === "watch") {
         setWatch(state);
-        applyStateToPlayer(watchPlayer, state, { force: true });
+        applyStateToPlayer(watchPlayerRef, state, { force: true });
       } else {
         setListen(state);
-        applyStateToPlayer(listenPlayer, state, { force: true });
+        applyStateToPlayer(listenPlayerRef, state, { force: true });
       }
     }
     function onGameUpdate(g) {
@@ -122,7 +122,20 @@ export default function App() {
       socket.off("disconnect", onDisconnect);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchPlayer, listenPlayer]);
+  }, [watchPlayerRef, listenPlayerRef]);
+
+  // The fix for "nothing happens": if a video was already chosen (e.g. from the
+  // room snapshot on join, or a socket update) before the YouTube player finished
+  // initializing, the load attempt above silently no-ops. Once the player signals
+  // it's actually ready, re-apply whatever media state we currently know about.
+  useEffect(() => {
+    if (watchReady) applyStateToPlayer(watchPlayerRef, watch, { force: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchReady]);
+  useEffect(() => {
+    if (listenReady) applyStateToPlayer(listenPlayerRef, listen, { force: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listenReady]);
 
   function spawnFloater(emoji, name) {
     const id = uid();
@@ -136,7 +149,7 @@ export default function App() {
   }
 
   function loadMedia(kind, url) {
-    const player = kind === "watch" ? watchPlayer : listenPlayer;
+    const player = kind === "watch" ? watchPlayerRef : listenPlayerRef;
     const id = extractYoutubeId(url);
     if (!id) return false;
     const partial = { videoId: id, isPlaying: true, position: 0 };
@@ -150,7 +163,7 @@ export default function App() {
   function togglePlay(kind) {
     const st = kind === "watch" ? watch : listen;
     if (!st.videoId) return;
-    const player = kind === "watch" ? watchPlayer : listenPlayer;
+    const player = kind === "watch" ? watchPlayerRef : listenPlayerRef;
     const pos = player.current?.getCurrentTime ? player.current.getCurrentTime() : st.position;
     const partial = { videoId: st.videoId, isPlaying: !st.isPlaying, position: pos };
     const full = { ...partial, updatedAt: Date.now(), updatedBy: user.id };
@@ -162,7 +175,7 @@ export default function App() {
   function seekMedia(kind, pct) {
     const st = kind === "watch" ? watch : listen;
     if (!st.videoId) return;
-    const player = kind === "watch" ? watchPlayer : listenPlayer;
+    const player = kind === "watch" ? watchPlayerRef : listenPlayerRef;
     const dur = player.current?.getDuration ? player.current.getDuration() : 0;
     const pos = pct * dur;
     const partial = { videoId: st.videoId, isPlaying: st.isPlaying, position: pos };
@@ -198,8 +211,8 @@ export default function App() {
         kind="watch"
         visible={tab === "watch"}
         state={watch}
-        playerRef={watchPlayer}
-        mountId="yt-watch-mount"
+        playerRef={watchPlayerRef}
+        containerRef={watchContainerRef}
         onLoad={(url) => loadMedia("watch", url)}
         onToggle={() => togglePlay("watch")}
         onSeek={(pct) => seekMedia("watch", pct)}
@@ -208,8 +221,8 @@ export default function App() {
         kind="listen"
         visible={tab === "listen"}
         state={listen}
-        playerRef={listenPlayer}
-        mountId="yt-listen-mount"
+        playerRef={listenPlayerRef}
+        containerRef={listenContainerRef}
         onLoad={(url) => loadMedia("listen", url)}
         onToggle={() => togglePlay("listen")}
         onSeek={(pct) => seekMedia("listen", pct)}

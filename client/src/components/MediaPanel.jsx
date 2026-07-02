@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { fmtTime, extractYoutubeId } from "../utils.js";
 
-export default function MediaPanel({ kind, visible, state, playerRef, mountId, onLoad, onToggle, onSeek }) {
+export default function MediaPanel({ kind, visible, state, playerRef, containerRef, onLoad, onToggle, onSeek }) {
   const isWatch = kind === "watch";
   const [urlInput, setUrlInput] = useState("");
   const [inputError, setInputError] = useState(false);
@@ -71,7 +71,7 @@ export default function MediaPanel({ kind, visible, state, playerRef, mountId, o
       </div>
 
       <div className={isWatch ? "video-wrap" : "video-wrap watch-mount-hidden"}>
-        <div id={mountId} style={{ width: "100%", height: "100%" }}></div>
+        <div ref={containerRef} style={{ width: "100%", height: "100%" }}></div>
       </div>
       {!isWatch && (
         <div className="listen-visual">

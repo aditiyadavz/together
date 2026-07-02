@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 let apiPromise = null;
 function loadYouTubeAPI() {
@@ -21,36 +21,65 @@ function loadYouTubeAPI() {
 }
 
 /**
- * Mounts a YouTube player into the DOM node with id `mountId` and keeps a
- * ref to the player instance. The mount node should stay in the DOM for the
- * lifetime of the app (don't conditionally render it away) so the player
- * doesn't get destroyed and recreated when switching tabs.
+ * Mounts a YouTube player and keeps refs to both the wrapper container and
+ * the player instance.
+ *
+ * IMPORTANT: this does NOT hand YouTube's API a DOM node that React also
+ * renders declaratively. YouTube's player replaces whatever element you give
+ * it with a live <iframe> — if that element is one React put in its own JSX
+ * tree, then the next time the component re-renders for any unrelated reason
+ * (a presence update, a chat reaction, anything), React reconciles its
+ * virtual DOM, sees "this should be an empty div" and stomps the iframe back
+ * to nothing. No error, no warning — the video just silently vanishes.
+ *
+ * The fix: the caller attaches `containerRef` to an always-empty React div.
+ * Because that div has zero children in JSX, React never touches its
+ * contents on re-render. Inside this hook we then imperatively create the
+ * actual mount node ourselves (outside React's knowledge) and hand *that* to
+ * YouTube, so the two never fight over the same element.
  */
 export function useYouTubePlayer(mountId) {
+  const containerRef = useRef(null);
   const playerRef = useRef(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (!containerRef.current) return;
     let cancelled = false;
+
+    const inner = document.createElement("div");
+    inner.id = mountId;
+    containerRef.current.appendChild(inner);
+
     loadYouTubeAPI().then((YT) => {
       if (cancelled) return;
-      playerRef.current = new YT.Player(mountId, {
+      playerRef.current = new YT.Player(inner, {
         height: "100%",
         width: "100%",
         playerVars: { rel: 0, modestbranding: 1 },
+        events: {
+          onReady: () => {
+            if (!cancelled) setReady(true);
+          },
+        },
       });
     });
+
     return () => {
       cancelled = true;
+      setReady(false);
       try {
         playerRef.current?.destroy();
       } catch (e) {
         // player may not be fully initialized yet
       }
+      playerRef.current = null;
+      if (containerRef.current) containerRef.current.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mountId]);
 
-  return playerRef;
+  return [containerRef, playerRef, ready];
 }
 
 /** Push a shared media state into a player, correcting drift or loading a new video. */
@@ -73,6 +102,6 @@ export function applyStateToPlayer(playerRef, state, { force = false } = {}) {
     }
     state.isPlaying ? player.playVideo() : player.pauseVideo();
   } catch (e) {
-    // player not ready yet; next poll/update will retry
+    console.warn("[Together] applyStateToPlayer failed, will retry on next update:", e);
   }
 }
