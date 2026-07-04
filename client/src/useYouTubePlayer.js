@@ -85,8 +85,8 @@ export function applyStateToPlayer(playerRef, state, { force = false } = {}) {
   if (!player || !player.loadVideoById || !state || !state.videoId) return;
   const predicted = state.isPlaying ? state.position + (Date.now() - state.updatedAt) / 1000 : state.position;
   try {
-    const data = player.getVideoData ? player.getVideoData() : {};
-    if (data.video_id !== state.videoId) {
+    if (player.__loadedVideoId !== state.videoId) {
+      player.__loadedVideoId = state.videoId;
       if (state.isPlaying) player.loadVideoById(state.videoId, Math.max(0, predicted));
       else player.cueVideoById(state.videoId, Math.max(0, predicted));
       return;
