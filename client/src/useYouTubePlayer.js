@@ -91,14 +91,23 @@ export function applyStateToPlayer(playerRef, state, { force = false } = {}) {
       else player.cueVideoById(state.videoId, Math.max(0, predicted));
       return;
     }
-    state.isPlaying ? player.playVideo() : player.pauseVideo();
-    if (force) {
-      player.seekTo(Math.max(0, predicted), true);
-    } else {
-      const cur = player.getCurrentTime ? player.getCurrentTime() : 0;
-      if (Math.abs(cur - predicted) > 2.5) player.seekTo(Math.max(0, predicted), true);
+    if (!state.isPlaying) {
+      player.pauseVideo();
+      return;
     }
-    state.isPlaying ? player.playVideo() : player.pauseVideo();
+
+    const cur = player.getCurrentTime ? player.getCurrentTime() : 0;
+    if (force || Math.abs(cur - predicted) > 1.5) {
+      player.seekTo(Math.max(0, predicted), true);
+    }
+    player.playVideo();
+    setTimeout(() => {
+      try {
+        if (player.getPlayerState && player.getPlayerState() !== 1) player.playVideo();
+      } catch (e) {
+        // ignore — player may have been torn down by then
+      }
+    }, 400);
   } catch (e) {
     console.warn("[Together] applyStateToPlayer failed, will retry on next update:", e);
   }
