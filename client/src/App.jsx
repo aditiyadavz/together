@@ -86,6 +86,7 @@ export default function App() {
       spawnFloater(r.emoji, r.name);
     }
     function onMediaUpdate({ kind, state }) {
+      console.log("[Together DEBUG] received media:update", kind, state);
       if (kind === "watch") {
         setWatch(state);
         applyStateToPlayer(watchPlayerRef, state, { force: true });

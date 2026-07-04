@@ -82,8 +82,22 @@ export function useYouTubePlayer(mountId) {
 /** Push a shared media state into a player, correcting drift or loading a new video. */
 export function applyStateToPlayer(playerRef, state, { force = false } = {}) {
   const player = playerRef.current;
-  if (!player || !player.loadVideoById || !state || !state.videoId) return;
+  if (!player || !player.loadVideoById || !state || !state.videoId) {
+    console.log("[Together DEBUG] applyStateToPlayer bailed early", {
+      hasPlayer: !!player,
+      hasLoadVideoById: !!(player && player.loadVideoById),
+      hasState: !!state,
+      videoId: state && state.videoId,
+    });
+    return;
+  }
   const predicted = state.isPlaying ? state.position + (Date.now() - state.updatedAt) / 1000 : state.position;
+  console.log("[Together DEBUG] applyStateToPlayer running", {
+    isPlaying: state.isPlaying,
+    loadedVideoId: player.__loadedVideoId,
+    stateVideoId: state.videoId,
+    sameVideo: player.__loadedVideoId === state.videoId,
+  });
   try {
     if (player.__loadedVideoId !== state.videoId) {
       player.__loadedVideoId = state.videoId;
