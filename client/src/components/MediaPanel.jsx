@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { fmtTime, extractYoutubeId } from "../utils.js";
 
-export default function MediaPanel({ kind, visible, state, playerRef, containerRef, onLoad, onToggle, onSeek }) {
+export default function MediaPanel({ kind, visible, state, playerRef, containerRef, error, onLoad, onToggle, onSeek }) {
   const isWatch = kind === "watch";
   const [urlInput, setUrlInput] = useState("");
   const [inputError, setInputError] = useState(false);
   const [times, setTimes] = useState({ cur: 0, dur: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const barRef = useRef(null);
+  const wrapRef = useRef(null);
 
-  // Tick displayed current time / duration from the live player, ~1x/sec.
   useEffect(() => {
     const t = setInterval(() => {
       const player = playerRef.current;
@@ -20,6 +21,22 @@ export default function MediaPanel({ kind, visible, state, playerRef, containerR
     }, 1000);
     return () => clearInterval(t);
   }, [playerRef]);
+
+  useEffect(() => {
+    function onChange() {
+      setIsFullscreen(document.fullscreenElement === wrapRef.current);
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      wrapRef.current?.requestFullscreen?.();
+    }
+  }
 
   function submitLoad() {
     const ok = onLoad(urlInput);
@@ -70,7 +87,7 @@ export default function MediaPanel({ kind, visible, state, playerRef, containerR
         </button>
       </div>
 
-      <div className={isWatch ? "video-wrap" : "video-wrap watch-mount-hidden"}>
+      <div ref={wrapRef} className={isWatch ? "video-wrap" : "video-wrap watch-mount-hidden"}>
         <div ref={containerRef} style={{ width: "100%", height: "100%" }}></div>
       </div>
       {!isWatch && (
@@ -93,8 +110,16 @@ export default function MediaPanel({ kind, visible, state, playerRef, containerR
           <div className="seek-fill" style={{ width: pct + "%" }}></div>
         </div>
         <span className="time-label">{fmtTime(times.dur)}</span>
+        <button className="icon-btn" onClick={toggleFullscreen} disabled={!state.videoId} title="Fullscreen">
+          {isFullscreen ? "⤢" : "⛶"}
+        </button>
       </div>
 
+      {error && (
+        <p className="empty-hint" style={{ marginTop: 14, color: "var(--pink)" }}>
+          ⚠️ {error}
+        </p>
+      )}
       {!state.videoId && (
         <p className="empty-hint" style={{ marginTop: 14 }}>
           Nothing loaded yet — paste a link above to start it for the whole room.
@@ -104,5 +129,4 @@ export default function MediaPanel({ kind, visible, state, playerRef, containerR
   );
 }
 
-// Re-export for convenience if a caller only needs ID extraction.
 export { extractYoutubeId };

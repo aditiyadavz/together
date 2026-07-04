@@ -4,11 +4,6 @@ import cors from "cors";
 import { Server } from "socket.io";
 
 const PORT = process.env.PORT || 4000;
-// In production, set CLIENT_ORIGIN to your deployed client URL (comma-separated for multiple).
-// IMPORTANT: "*" must stay a plain string, not get wrapped in an array — both the `cors`
-// package and Socket.IO's engine.io CORS handling do a literal match against each array
-// entry, so an array containing "*" will never match a real origin like
-// "http://localhost:5173" and every request gets silently blocked.
 const rawOrigin = process.env.CLIENT_ORIGIN || "*";
 const ALLOWED_ORIGINS = rawOrigin === "*" ? "*" : rawOrigin.split(",").map((s) => s.trim());
 
@@ -23,17 +18,6 @@ const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS },
 });
 
-/**
- * Room shape (all in-memory — swap this Map for Redis if you need
- * multi-instance scaling or persistence across server restarts):
- * {
- *   users: Map<socketId, { userId, name }>,
- *   reactions: [{ id, emoji, name, userId, ts }],
- *   watch: MediaState,
- *   listen: MediaState,
- *   game: GameState,
- * }
- */
 const rooms = new Map();
 
 const WINS = [
@@ -53,6 +37,7 @@ function getRoom(code) {
     rooms.set(code, {
       users: new Map(),
       reactions: [],
+      chat: [],
       watch: emptyMedia(),
       listen: emptyMedia(),
       game: emptyGame(),
@@ -86,13 +71,13 @@ io.on("connection", (socket) => {
     const room = getRoom(currentRoom);
     room.users.set(socket.id, currentUser);
 
-    // Send the joining client everything they need to render immediately.
     socket.emit("room:snapshot", {
       presence: presenceList(room),
       watch: room.watch,
       listen: room.listen,
       game: room.game,
       reactions: room.reactions.slice(-10),
+      chat: room.chat.slice(-50),
     });
     broadcastPresence(currentRoom);
   });
@@ -109,8 +94,24 @@ io.on("connection", (socket) => {
     };
     room.reactions.push(entry);
     if (room.reactions.length > 30) room.reactions.shift();
-    // Broadcast to everyone else; sender shows it optimistically client-side.
     socket.to(currentRoom).emit("reaction", entry);
+  });
+
+  socket.on("chat:message", ({ text }) => {
+    if (!currentRoom || !currentUser) return;
+    const clean = String(text || "").trim().slice(0, 500);
+    if (!clean) return;
+    const room = getRoom(currentRoom);
+    const entry = {
+      id: Math.random().toString(36).slice(2),
+      text: clean,
+      name: currentUser.name,
+      userId: currentUser.userId,
+      ts: Date.now(),
+    };
+    room.chat.push(entry);
+    if (room.chat.length > 200) room.chat.shift();
+    io.to(currentRoom).emit("chat:message", entry);
   });
 
   socket.on("media:update", ({ kind, state }) => {
@@ -177,7 +178,6 @@ io.on("connection", (socket) => {
     room.users.delete(socket.id);
     broadcastPresence(currentRoom);
     if (room.users.size === 0) {
-      // Give people a window to reconnect (e.g. refresh) before wiping room state.
       const codeAtClose = currentRoom;
       setTimeout(() => {
         const r = rooms.get(codeAtClose);

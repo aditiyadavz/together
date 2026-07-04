@@ -9,6 +9,7 @@ import { ReactionBar, FloaterLayer } from "./components/Reactions.jsx";
 import { RoomHeader, Tabs } from "./components/RoomChrome.jsx";
 import MediaPanel from "./components/MediaPanel.jsx";
 import GamePanel from "./components/GamePanel.jsx";
+import ChatPanel from "./components/ChatPanel.jsx";
 
 function emptyMedia() {
   return { videoId: null, isPlaying: false, position: 0, updatedAt: Date.now(), updatedBy: null };
@@ -29,7 +30,7 @@ function storeUser(u) {
   try {
     localStorage.setItem("together_user", JSON.stringify(u));
   } catch (e) {
-    // ignore (e.g. private browsing storage errors)
+    // ignore
   }
 }
 
@@ -44,9 +45,11 @@ export default function App() {
   const [listen, setListen] = useState(emptyMedia());
   const [game, setGame] = useState(emptyGame());
   const [floaters, setFloaters] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatOpen, setChatOpen] = useState(false);
 
-  const [watchContainerRef, watchPlayerRef, watchReady] = useYouTubePlayer("yt-watch-mount");
-  const [listenContainerRef, listenPlayerRef, listenReady] = useYouTubePlayer("yt-listen-mount");
+  const [watchContainerRef, watchPlayerRef, watchReady, watchError] = useYouTubePlayer("yt-watch-mount");
+  const [listenContainerRef, listenPlayerRef, listenReady, listenError] = useYouTubePlayer("yt-listen-mount");
 
   const joinRoom = useCallback(
     (code, name) => {
@@ -67,15 +70,16 @@ export default function App() {
     setWatch(emptyMedia());
     setListen(emptyMedia());
     setGame(emptyGame());
+    setChatMessages([]);
   }, []);
 
-  // Wire up socket listeners once, and re-attach handlers if player refs/readiness change.
   useEffect(() => {
     function onSnapshot(s) {
       setPresence(s.presence || {});
       setWatch(s.watch || emptyMedia());
       setListen(s.listen || emptyMedia());
       setGame(s.game || emptyGame());
+      setChatMessages(s.chat || []);
       applyStateToPlayer(watchPlayerRef, s.watch || emptyMedia(), { force: true });
       applyStateToPlayer(listenPlayerRef, s.listen || emptyMedia(), { force: true });
     }
@@ -84,6 +88,9 @@ export default function App() {
     }
     function onReaction(r) {
       spawnFloater(r.emoji, r.name);
+    }
+    function onChatMessage(m) {
+      setChatMessages((prev) => [...prev, m].slice(-200));
     }
     function onMediaUpdate({ kind, state }) {
       console.log("[Together DEBUG] received media:update", kind, state);
@@ -108,6 +115,7 @@ export default function App() {
     socket.on("room:snapshot", onSnapshot);
     socket.on("presence:update", onPresenceUpdate);
     socket.on("reaction", onReaction);
+    socket.on("chat:message", onChatMessage);
     socket.on("media:update", onMediaUpdate);
     socket.on("game:update", onGameUpdate);
     socket.on("connect", onConnect);
@@ -117,6 +125,7 @@ export default function App() {
       socket.off("room:snapshot", onSnapshot);
       socket.off("presence:update", onPresenceUpdate);
       socket.off("reaction", onReaction);
+      socket.off("chat:message", onChatMessage);
       socket.off("media:update", onMediaUpdate);
       socket.off("game:update", onGameUpdate);
       socket.off("connect", onConnect);
@@ -125,10 +134,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchPlayerRef, listenPlayerRef]);
 
-  // The fix for "nothing happens": if a video was already chosen (e.g. from the
-  // room snapshot on join, or a socket update) before the YouTube player finished
-  // initializing, the load attempt above silently no-ops. Once the player signals
-  // it's actually ready, re-apply whatever media state we currently know about.
   useEffect(() => {
     if (watchReady) applyStateToPlayer(watchPlayerRef, watch, { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,7 +151,7 @@ export default function App() {
 
   function sendReaction(emoji) {
     socket.emit("reaction", { emoji });
-    spawnFloater(emoji, user.name); // optimistic local echo, server only relays to others
+    spawnFloater(emoji, user.name);
   }
 
   function loadMedia(kind, url) {
@@ -186,6 +191,10 @@ export default function App() {
     socket.emit("media:update", { kind, state: partial });
   }
 
+  function sendChatMessage(text) {
+    socket.emit("chat:message", { text });
+  }
+
   function claimSide(symbol) {
     socket.emit("game:claim", { symbol });
   }
@@ -202,40 +211,59 @@ export default function App() {
 
   return (
     <div id="app">
-      <RoomHeader room={room} connected={connected} onLeave={leaveRoom} />
-      <PresenceBar presence={presence} />
-      <ReactionBar onSend={sendReaction} />
-      <FloaterLayer floaters={floaters} />
-      <Tabs tab={tab} setTab={setTab} />
+      <div className="main-column">
+        <RoomHeader room={room} connected={connected} onLeave={leaveRoom} />
+        <PresenceBar presence={presence} />
+        <ReactionBar onSend={sendReaction} />
+        <FloaterLayer floaters={floaters} />
+        <Tabs tab={tab} setTab={setTab} />
 
-      <MediaPanel
-        kind="watch"
-        visible={tab === "watch"}
-        state={watch}
-        playerRef={watchPlayerRef}
-        containerRef={watchContainerRef}
-        onLoad={(url) => loadMedia("watch", url)}
-        onToggle={() => togglePlay("watch")}
-        onSeek={(pct) => seekMedia("watch", pct)}
-      />
-      <MediaPanel
-        kind="listen"
-        visible={tab === "listen"}
-        state={listen}
-        playerRef={listenPlayerRef}
-        containerRef={listenContainerRef}
-        onLoad={(url) => loadMedia("listen", url)}
-        onToggle={() => togglePlay("listen")}
-        onSeek={(pct) => seekMedia("listen", pct)}
-      />
-      <GamePanel
-        visible={tab === "play"}
-        game={game}
-        userId={user.id}
-        onClaim={claimSide}
-        onMove={makeMove}
-        onReset={resetGame}
-      />
+        <MediaPanel
+          kind="watch"
+          visible={tab === "watch"}
+          state={watch}
+          playerRef={watchPlayerRef}
+          containerRef={watchContainerRef}
+          error={watchError}
+          onLoad={(url) => loadMedia("watch", url)}
+          onToggle={() => togglePlay("watch")}
+          onSeek={(pct) => seekMedia("watch", pct)}
+        />
+        <MediaPanel
+          kind="listen"
+          visible={tab === "listen"}
+          state={listen}
+          playerRef={listenPlayerRef}
+          containerRef={listenContainerRef}
+          error={listenError}
+          onLoad={(url) => loadMedia("listen", url)}
+          onToggle={() => togglePlay("listen")}
+          onSeek={(pct) => seekMedia("listen", pct)}
+        />
+        <GamePanel
+          visible={tab === "play"}
+          game={game}
+          userId={user.id}
+          onClaim={claimSide}
+          onMove={makeMove}
+          onReset={resetGame}
+        />
+      </div>
+
+      <div className={"chat-column" + (chatOpen ? " open" : "")}>
+        <ChatPanel
+          messages={chatMessages}
+          userId={user.id}
+          onSend={sendChatMessage}
+          onClose={() => setChatOpen(false)}
+        />
+      </div>
+
+      {!chatOpen && (
+        <button className="chat-fab" onClick={() => setChatOpen(true)} aria-label="Open chat">
+          💬
+        </button>
+      )}
     </div>
   );
 }
