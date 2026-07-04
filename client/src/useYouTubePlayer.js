@@ -20,21 +20,23 @@ function loadYouTubeAPI() {
   return apiPromise;
 }
 
-/**
- * Mounts a YouTube player using a React *callback ref* instead of a plain
- * ref + useEffect. React calls a callback ref with the real DOM node the
- * instant it's attached (and with null right before it's removed) — there is
- * no separate render/commit/effect timing to reason about, so this can't
- * race the way a useRef+useEffect pairing sometimes can.
- *
- * It also still avoids handing YouTube a DOM node that React renders
- * declaratively: we create our own plain child div imperatively and give
- * that to YouTube, so React never tries to reconcile the iframe YouTube
- * creates.
- */
+function friendlyYouTubeError(code) {
+  if (code === 101 || code === 150) {
+    return "This video's owner has disabled playback outside youtube.com — try a different link.";
+  }
+  if (code === 100) {
+    return "That video is private or was removed.";
+  }
+  if (code === 2) {
+    return "That doesn't look like a valid YouTube video.";
+  }
+  return "That video couldn't be played here — try a different link.";
+}
+
 export function useYouTubePlayer(mountId) {
   const playerRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
 
   const containerRef = useCallback(
     (node) => {
@@ -46,9 +48,6 @@ export function useYouTubePlayer(mountId) {
         node.appendChild(inner);
 
         loadYouTubeAPI().then((YT) => {
-          // If the component unmounted before the API finished loading,
-          // `node` will already be disconnected — bail out instead of
-          // creating a player nobody can see.
           if (!inner.isConnected) return;
           playerRef.current = new YT.Player(inner, {
             height: "100%",
@@ -56,11 +55,14 @@ export function useYouTubePlayer(mountId) {
             playerVars: { rel: 0, modestbranding: 1 },
             events: {
               onReady: () => setReady(true),
+              onError: (e) => setError(friendlyYouTubeError(e?.data)),
+              onStateChange: (e) => {
+                if (e?.data === 1 || e?.data === -1) setError(null);
+              },
             },
           });
         });
       } else {
-        // node is null: React is about to remove the container (unmount).
         try {
           playerRef.current?.destroy();
         } catch (e) {
@@ -68,12 +70,13 @@ export function useYouTubePlayer(mountId) {
         }
         playerRef.current = null;
         setReady(false);
+        setError(null);
       }
     },
     [mountId]
   );
 
-  return [containerRef, playerRef, ready];
+  return [containerRef, playerRef, ready, error];
 }
 
 /** Push a shared media state into a player, correcting drift or loading a new video. */
@@ -88,6 +91,7 @@ export function applyStateToPlayer(playerRef, state, { force = false } = {}) {
       else player.cueVideoById(state.videoId, Math.max(0, predicted));
       return;
     }
+    state.isPlaying ? player.playVideo() : player.pauseVideo();
     if (force) {
       player.seekTo(Math.max(0, predicted), true);
     } else {
