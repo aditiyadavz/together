@@ -1,13 +1,36 @@
 import React, { useEffect, useRef, useState } from "react";
 import { colorFor, initials, fmtClockTime } from "../utils.js";
 
+const EMOJI_LIST = [
+  "😀", "😂", "🤣", "😊", "😍", "😘", "😜", "🤩", "🥳", "😎",
+  "🤔", "😅", "😭", "😡", "😴", "🤗", "🙃", "😇", "🥰", "😏",
+  "👍", "👎", "👏", "🙌", "🤝", "🙏", "💪", "✌️", "🤞", "👌",
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💕", "💔", "💯",
+  "🔥", "✨", "🎉", "🎂", "🎁", "⭐", "☀️", "🌙", "🌈", "☕",
+  "🍕", "🍔", "🍟", "🍩", "🍺", "⚽", "🎮", "📸", "🎵", "😢",
+];
+
 export default function ChatPanel({ messages, userId, unreadCount, onSend, onClose }) {
   const [text, setText] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const listRef = useRef(null);
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
 
+  // Auto-scroll to the newest message whenever the list grows.
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages.length]);
+
+  // Close the emoji picker when clicking anywhere outside it.
+  useEffect(() => {
+    if (!emojiOpen) return;
+    function onDocClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setEmojiOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [emojiOpen]);
 
   function submit(e) {
     e.preventDefault();
@@ -15,6 +38,12 @@ export default function ChatPanel({ messages, userId, unreadCount, onSend, onClo
     if (!clean) return;
     onSend(clean);
     setText("");
+    setEmojiOpen(false);
+  }
+
+  function insertEmoji(emoji) {
+    setText((t) => t + emoji);
+    inputRef.current?.focus();
   }
 
   return (
@@ -57,18 +86,38 @@ export default function ChatPanel({ messages, userId, unreadCount, onSend, onClo
         })}
       </div>
 
-      <form className="chat-input-row" onSubmit={submit}>
-        <input
-          type="text"
-          value={text}
-          maxLength={500}
-          placeholder="Type a message…"
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="chat-send-btn" type="submit" aria-label="Send" disabled={!text.trim()}>
-          ➤
-        </button>
-      </form>
+      <div className="chat-input-wrap" ref={wrapRef}>
+        {emojiOpen && (
+          <div className="emoji-picker">
+            {EMOJI_LIST.map((e) => (
+              <button type="button" key={e} className="emoji-btn" onClick={() => insertEmoji(e)}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+        <form className="chat-input-row" onSubmit={submit}>
+          <button
+            type="button"
+            className="emoji-toggle-btn"
+            onClick={() => setEmojiOpen((o) => !o)}
+            aria-label="Insert emoji"
+          >
+            😊
+          </button>
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            maxLength={500}
+            placeholder="Type a message…"
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button className="chat-send-btn" type="submit" aria-label="Send" disabled={!text.trim()}>
+            ➤
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
