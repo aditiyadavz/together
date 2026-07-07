@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "./socket.js";
-import { uid, extractYoutubeId } from "./utils.js";
+import { uid, extractYoutubeId, playNotificationSound } from "./utils.js";
 import { useYouTubePlayer, applyStateToPlayer } from "./useYouTubePlayer.js";
 
 import JoinScreen from "./components/JoinScreen.jsx";
@@ -46,7 +46,13 @@ export default function App() {
   const [game, setGame] = useState(emptyGame());
   const [floaters, setFloaters] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => typeof window !== "undefined" && window.innerWidth > 900);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatOpenRef = useRef(chatOpen);
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+    if (chatOpen) setUnreadCount(0);
+  }, [chatOpen]);
 
   const [watchContainerRef, watchPlayerRef, watchReady, watchError] = useYouTubePlayer("yt-watch-mount");
   const [listenContainerRef, listenPlayerRef, listenReady, listenError] = useYouTubePlayer("yt-listen-mount");
@@ -71,6 +77,7 @@ export default function App() {
     setListen(emptyMedia());
     setGame(emptyGame());
     setChatMessages([]);
+    setUnreadCount(0);
   }, []);
 
   useEffect(() => {
@@ -91,6 +98,10 @@ export default function App() {
     }
     function onChatMessage(m) {
       setChatMessages((prev) => [...prev, m].slice(-200));
+      if (m.userId !== user.id) {
+        playNotificationSound();
+        if (!chatOpenRef.current) setUnreadCount((c) => c + 1);
+      }
     }
     function onMediaUpdate({ kind, state }) {
       console.log("[Together DEBUG] received media:update", kind, state);
@@ -254,6 +265,7 @@ export default function App() {
         <ChatPanel
           messages={chatMessages}
           userId={user.id}
+          unreadCount={unreadCount}
           onSend={sendChatMessage}
           onClose={() => setChatOpen(false)}
         />
@@ -262,6 +274,7 @@ export default function App() {
       {!chatOpen && (
         <button className="chat-fab" onClick={() => setChatOpen(true)} aria-label="Open chat">
           💬
+          {!!unreadCount && <span className="chat-fab-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </button>
       )}
     </div>
